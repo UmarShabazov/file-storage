@@ -6,7 +6,6 @@ import com.example.file_storage.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,17 +21,17 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api")
-public class PublicAuthorizationController {
+public class AuthController {
 
-    private static final Logger log = LoggerFactory.getLogger(PublicAuthorizationController.class);
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository =
             new HttpSessionSecurityContextRepository();
 
     @Autowired
-    public PublicAuthorizationController(UserService userService,
-                                         AuthenticationManager authenticationManager
+    public AuthController(UserService userService,
+                          AuthenticationManager authenticationManager
                                          ) {
         this.userService = userService;
         this.authenticationManager = authenticationManager;

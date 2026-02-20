@@ -52,6 +52,14 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorMessage(ex.getMessage()));
     }
 
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ErrorMessage> handleMinio(StorageException ex, HttpServletRequest req) {
+        log.error("Unhandled exception: method={}, path={}, ip={}",
+                req.getMethod(), req.getRequestURI(), req.getRemoteAddr(), ex);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorMessage(ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorMessage> handleUnknown(Exception ex,  HttpServletRequest req) {
         log.error("Unhandled exception: method={}, path={}, ip={}",
