@@ -1,23 +1,14 @@
 package com.example.file_storage.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 
 
-public class UserDTO {
+public record UserDTO(
+        @NotBlank
+        @JsonProperty("username")
+        String userName
+) {
 
-    @NotBlank
-    private String userName;
-
-    public UserDTO(String userName) {
-        this.userName = userName;
-    }
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
 
 }

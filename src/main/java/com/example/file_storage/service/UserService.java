@@ -7,6 +7,7 @@ import com.example.file_storage.entity.UserRole;
 import com.example.file_storage.exception.UserNameIsTakenException;
 import com.example.file_storage.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +28,8 @@ public class UserService {
 
     public UserDTO register(UserCreateUpdateDTO dto) {
 
-        String userName = dto.getUserName();
-        String password = dto.getPassword();
+        String userName = dto.userName();
+        String password = dto.password();
 
         if (userRepository.findByUserName(userName).isPresent()) {
 

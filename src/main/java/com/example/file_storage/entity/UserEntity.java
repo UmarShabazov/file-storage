@@ -1,6 +1,7 @@
 package com.example.file_storage.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,17 +17,17 @@ public class UserEntity {
     private Long id;
 
     @NotBlank
-    @Column(name = "name", length = 20, unique = true)
-    @Size(min = 1, message = "User name should be greater than 1 letter")
+    @Column(name = "username", length = 20, unique = true)
+    @Size(min = 3, message = "User name should be at least 3 characters")
     private String userName;
 
     @NotBlank
     @Column(name = "password")
     private String password;
 
-
     @Column(name = "role")
     @Enumerated (EnumType.STRING)
+    @NotNull
     private UserRole role;
 
     public UserEntity() {

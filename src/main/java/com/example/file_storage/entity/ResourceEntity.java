@@ -3,8 +3,6 @@ package com.example.file_storage.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
-import javax.annotation.Nullable;
-
 @Entity
 @Table(name = "resources")
 public class ResourceEntity {
@@ -28,12 +26,16 @@ public class ResourceEntity {
 
     @NotNull
     @ManyToOne
-    @JoinColumn (name = "user_id")
+    @JoinColumn (name = "owner_id", nullable = false)
     private UserEntity owner;
 
-    @ManyToOne
-    @JoinColumn (name = "parent_id")
-    private ResourceEntity parent;
+    @NotNull
+    @Column(name = "full_path", nullable = false, length = 1024)
+    private String fullPath;
+
+    @NotNull
+    @Column(name = "parent_path", nullable = false, length = 1024)
+    private String parentPath;
 
 
     public Long getId() {
@@ -77,21 +79,31 @@ public class ResourceEntity {
         this.owner = owner;
     }
 
-    public ResourceEntity getParent() {
-        return parent;
+    public String getParentPath() {
+        return parentPath;
     }
 
-    public void setParent(ResourceEntity parent) {
-        this.parent = parent;
+    public void setParentPath(String parentPath) {
+        this.parentPath = parentPath;
+    }
+
+    public String getFullPath() {
+        return fullPath;
+    }
+
+    public void setFullPath(String fullPath) {
+        this.fullPath = fullPath;
     }
 
     public ResourceEntity(){}
 
-    public ResourceEntity( String name, Long size, @NotNull ResourceType type, UserEntity user, ResourceEntity parentId) {
+    public ResourceEntity(Long id, String name, Long size, ResourceType type, UserEntity owner, String fullPath, String parentPath) {
+        this.id = id;
         this.name = name;
         this.size = size;
         this.type = type;
-        this.owner = user;
-        this.parent = parentId;
+        this.owner = owner;
+        this.fullPath = fullPath;
+        this.parentPath = parentPath;
     }
 }
