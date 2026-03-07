@@ -6,6 +6,7 @@ import com.example.file_storage.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,18 +47,14 @@ public class AuthController {
         log.info("Sign-up attempt");
         userService.register(dto);
 
-        String userName = dto.getUserName();
-        String password = dto.getPassword();
+        String userName = dto.userName();
+        String password = dto.password();
 
-        Authentication auth = new UsernamePasswordAuthenticationToken(userName, password);
-        Authentication authResult = authenticationManager.authenticate(auth);
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authResult);
-        SecurityContextHolder.setContext(context);
+        SecurityContext context = authenticateAndStoreContext(userName, password);
 
         securityContextRepository.saveContext(context, request, response);
 
-        return new UserDTO(dto.getUserName());
+        return new UserDTO(dto.userName());
     }
 
     @PostMapping("/auth/sign-in")
@@ -65,17 +62,22 @@ public class AuthController {
                              HttpServletRequest request,
                              HttpServletResponse response) {
 
-        String userName = dto.getUserName();
-        String password = dto.getPassword();
+        String userName = dto.userName();
+        String password = dto.password();
 
+        SecurityContext context = authenticateAndStoreContext(userName, password);
+
+        securityContextRepository.saveContext(context, request, response);
+
+        return new UserDTO(dto.userName());
+    }
+
+    private @NotNull SecurityContext authenticateAndStoreContext(String userName, String password) {
         Authentication auth = new UsernamePasswordAuthenticationToken(userName, password);
         Authentication authResult = authenticationManager.authenticate(auth);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authResult);
         SecurityContextHolder.setContext(context);
-
-        securityContextRepository.saveContext(context, request, response);
-
-        return new UserDTO(dto.getUserName());
+        return context;
     }
 }
