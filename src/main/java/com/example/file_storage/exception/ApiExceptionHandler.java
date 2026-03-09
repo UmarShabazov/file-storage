@@ -94,6 +94,15 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorMessage(ex.getMessage()));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<@NotNull ErrorMessage> handleIllegalArgument(IllegalArgumentException ex,
+                                                                       HttpServletRequest req) {
+        log.error("Unhandled exception: method={}, path={}, ip={}",
+                req.getMethod(), req.getRequestURI(), req.getRemoteAddr(), ex);
+
+        return ResponseEntity.badRequest().body(new ErrorMessage(ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<@NotNull ErrorMessage> handleUnknown(Exception ex,  HttpServletRequest req) {
         log.error("Unhandled exception: method={}, path={}, ip={}",
