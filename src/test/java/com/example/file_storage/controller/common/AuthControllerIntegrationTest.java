@@ -1,24 +1,20 @@
 package com.example.file_storage.controller.common;
 
+import com.example.file_storage.config.TestcontainersConfiguration;
 import com.example.file_storage.config.TestStorageConfig;
 import com.example.file_storage.dto.UserCreateUpdateDTO;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assertions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import jakarta.servlet.http.Cookie;
 
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
@@ -27,29 +23,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 
 @SpringBootTest
-@Testcontainers
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TestStorageConfig.class)
+@Import({TestStorageConfig.class, TestcontainersConfiguration.class})
 public class AuthControllerIntegrationTest {
 
     @Autowired
     private MockMvc mvc;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Container
-    private static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16");
-
-    @DynamicPropertySource
-    static void loadProperties(@NotNull DynamicPropertyRegistry registry) {
-
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-
-    }
-
     private UserCreateUpdateDTO newUser(String baseName) {
         String suffix = java.lang.Long.toString(System.nanoTime(), 36);
         String username = baseName + "_" + suffix;
@@ -131,10 +113,10 @@ public class AuthControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(dto4)))
                 .andExpect(status().isOk())
                 .andReturn();
-        MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+        Cookie sessionCookie = loginResult.getResponse().getCookie("SESSION");
+        Assertions.assertNotNull(sessionCookie);
 
-        mvc.perform(post("/api/auth/sign-out").session(session))
-                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/api/auth/sign-out").cookie(sessionCookie))
+                .andExpect(status().isNoContent());
     }
 }
-
