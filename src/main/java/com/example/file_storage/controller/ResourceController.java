@@ -5,7 +5,6 @@ import com.example.file_storage.service.ResourceService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.*;
@@ -31,12 +30,10 @@ public class ResourceController {
     }
 
     private static final String PATH_ANY =
-            "^(?!/)(?!.*//)(?!.*(^|/)\\.\\.?(?:/|$))(?:[^/]+/)*[^/]+/?$";
+            "^(?!/)(?!.*//)(?!.*(^|/)\\.\\.?(?:/|$))(?:[^/\\\\]+/)*[^/\\\\]+/?$";
 
     private static final String PATH_DIR =
-            "^$|(?!/)(?!.*//)(?!.*(^|/)\\.\\.?(?:/|$))(?:[^/]+/)*[^/]+/$";
-    private static final String PATH_DIR_NON_EMPTY =
-            "^(?!/)(?!.*//)(?!.*(^|/)\\.\\.?(?:/|$))(?:[^/]+/)*[^/]+/$";
+            "^$|(?!/)(?!.*//)(?!.*(^|/)\\.\\.?(?:/|$))(?:[^/\\\\]+/)*[^/\\\\]+/$";
 
 
     @GetMapping("/resource")
@@ -97,7 +94,7 @@ public class ResourceController {
     }
 
     @GetMapping("/resource/search")
-    public Page<ResourceDTO> find(@RequestParam("query")
+    public List<ResourceDTO> find(@RequestParam("query")
                                   @NotBlank(message = "Query should be presented")
                                   @Size(max = 256, message = "Query is too long")
                                   String query,
@@ -135,7 +132,7 @@ public class ResourceController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResourceDTO createDirectory(@RequestParam("path")
                                        @NotBlank(message = "Directory path must not be blank")
-                                       @Pattern(regexp = PATH_DIR_NON_EMPTY, message = "Directory path must end with '/'")
+                                       @Pattern(regexp = PATH_DIR, message = "Directory path must end with '/'")
                                        String path,
                                        @AuthenticationPrincipal UserDetails user) {
 

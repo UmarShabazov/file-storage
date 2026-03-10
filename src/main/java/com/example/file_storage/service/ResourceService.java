@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 
@@ -30,6 +29,10 @@ import java.util.zip.*;
 @Service
 @Transactional
 public class ResourceService {
+
+    private static final long MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024 * 1024;
+    private static final long MAX_TOTAL_UPLOAD_SIZE_BYTES = 2L * 1024 * 1024 * 1024;
+    private static final int MAX_FILES_PER_REQUEST = 200;
 
     public record DownloadPayload(StreamingResponseBody body, String filename) {
 
@@ -51,6 +54,7 @@ public class ResourceService {
     }
 
     public ResourceDTO getResourceInfo(String path, String username) {
+        path = normalizeLookupPath(path);
 
         UserEntity owner = requireUser(username);
 
@@ -61,6 +65,7 @@ public class ResourceService {
     }
 
     public void deleteResource(String path, String username) {
+        path = normalizeLookupPath(path);
 
         UserEntity owner = requireUser(username);
 
@@ -82,31 +87,36 @@ public class ResourceService {
     }
 
     public DownloadPayload download(String path, String username) {
+        path = normalizeLookupPath(path);
+        final String normalizedPath = path;
 
         UserEntity owner = requireUser(username);
 
-        ResourceEntity entity = getResourceEntity(path, owner);
+        ResourceEntity entity = getResourceEntity(normalizedPath, owner);
 
         if (entity.getType() == ResourceType.FILE) {
             StreamingResponseBody body = out -> {
-                try (InputStream in = storageRepository.downloadFile(owner.getId(), path)) {
+                try (InputStream in = storageRepository.downloadFile(owner.getId(), normalizedPath)) {
                     in.transferTo(out);
                 }
             };
 
             return new DownloadPayload(body, entity.getName());
         } else {
-            StreamingResponseBody body = out -> zipFolder(owner, path, out);
+            StreamingResponseBody body = out -> zipFolder(owner, normalizedPath, out);
             return new DownloadPayload(body, entity.getName() + ".zip");
         }
 
     }
 
     public ResourceDTO moveResource(String from, String to, String username) {
+        from = normalizeLookupPath(from);
 
         UserEntity owner = requireUser(username);
 
         ResourceEntity entity = getResourceEntity(from, owner);
+        validateMoveTargetType(to, entity.getType());
+        to = normalizeMoveTargetPath(to, entity.getType());
 
         if (from.equals(to)) {
             return entityToDTOConverter(entity);
@@ -124,11 +134,28 @@ public class ResourceService {
         return entityToDTOConverter(entity);
     }
 
+    private void validateMoveTargetType(String path, ResourceType type) {
+        if (path == null) {
+            throw new IllegalArgumentException("Path must not be null");
+        }
+        boolean endsWithSlash = path.endsWith("/");
+        if (type == ResourceType.DIRECTORY && !endsWithSlash) {
+            throw new IllegalArgumentException("Directory target path must end with '/'");
+        }
+        if (type == ResourceType.FILE && endsWithSlash) {
+            throw new IllegalArgumentException("File target path must not end with '/'");
+        }
+    }
+
+    private String normalizeMoveTargetPath(String path, ResourceType type) {
+        return pathService.normalizePath(path, type);
+    }
+
     private void ensureNoConflictOnMove(UserEntity owner, String to) {
         boolean conflictOnMove = resourceRepository.findByOwnerAndFullPath(owner, to).isPresent();
         if (conflictOnMove) {
             throw new ResourceAlreadyExistsException(
-                    "Resource with the same name already exists at path" + to + ".");
+                    "Resource already exists: " + to + ".");
         }
     }
 
@@ -162,6 +189,9 @@ public class ResourceService {
     }
 
     private void applyNewPath(ResourceEntity entity, String newPath) {
+        newPath = entity.getType() == ResourceType.DIRECTORY
+                ? pathService.normalizePath(newPath, ResourceType.DIRECTORY)
+                : pathService.normalizePath(newPath, ResourceType.FILE);
         entity.setFullPath(newPath);
         entity.setName(pathService.extractName(newPath));
         entity.setParentPath(pathService.extractParentPath(newPath));
@@ -176,17 +206,19 @@ public class ResourceService {
         resourceRepository.save(entity);
     }
 
-    public Page<ResourceDTO> find(String query, String username, Pageable pageable) {
+    public List<ResourceDTO> find(String query, String username, Pageable pageable) {
 
         UserEntity owner = requireUser(username);
 
-        Page<ResourceEntity> resourceEntities = resourceRepository
-                .findAllByOwnerAndNameContainingIgnoreCase(owner, query, pageable);
-
-        return resourceEntities.map(this::entityToDTOConverter);
+        return resourceRepository
+                .findAllByOwnerAndNameContainingIgnoreCase(owner, query, pageable)
+                .stream()
+                .map(this::entityToDTOConverter)
+                .toList();
     }
 
     public List<ResourceDTO> upload(String path, String username, List<MultipartFile> files) {
+        path = pathService.normalizePath(path, ResourceType.DIRECTORY);
 
         UserEntity owner = requireUser(username);
 
@@ -200,6 +232,8 @@ public class ResourceService {
             throw new IllegalArgumentException("There should be files for upload");
         }
 
+        validateUploadLimits(files);
+
         List<ResourceDTO> uploaded = new ArrayList<>();
 
         for (MultipartFile file : files) {
@@ -210,6 +244,7 @@ public class ResourceService {
             if (relative == null || relative.isBlank()) {
                 throw new IllegalArgumentException("File name must be present");
             }
+            relative = pathService.normalizeUploadRelativePath(relative);
 
             ensureDirectoryExists(path, relative, owner);
 
@@ -243,6 +278,32 @@ public class ResourceService {
                 .toList();
     }
 
+    private void validateUploadLimits(List<MultipartFile> files) {
+        if (files.size() > MAX_FILES_PER_REQUEST) {
+            throw new IllegalArgumentException(
+                    "Too many files in one upload request. Maximum is " + MAX_FILES_PER_REQUEST + ".");
+        }
+
+        long totalSize = 0;
+        for (MultipartFile file : files) {
+            long fileSize = file.getSize();
+            if (fileSize > MAX_FILE_SIZE_BYTES) {
+                throw new IllegalArgumentException(
+                        "File is too large: " + safeFileName(file) + ". Maximum size is 2 GB.");
+            }
+
+            totalSize += fileSize;
+            if (totalSize > MAX_TOTAL_UPLOAD_SIZE_BYTES) {
+                throw new IllegalArgumentException("Upload size exceeds 2 GB.");
+            }
+        }
+    }
+
+    private String safeFileName(MultipartFile file) {
+        String originalFilename = file.getOriginalFilename();
+        return originalFilename == null || originalFilename.isBlank() ? "<unknown>" : originalFilename;
+    }
+
     private void ensureDirectoryExists(String basePath, String relative, UserEntity owner) {
 
         String relativeParentPath = pathService.extractParentPath(relative);
@@ -272,6 +333,7 @@ public class ResourceService {
     }
 
     public List<ResourceDTO> getDirectoryContents(String path, String username) {
+        path = path.isEmpty() ? "" : pathService.normalizePath(path, ResourceType.DIRECTORY);
 
         UserEntity owner = requireUser(username);
 
@@ -293,14 +355,7 @@ public class ResourceService {
     }
 
     public ResourceDTO createDirectory(String path, String username) {
-
-        if (path == null || path.isBlank()) {
-            throw new IllegalArgumentException("Path must not be blank");
-        }
-
-        if (path.equals("/")) {
-            throw new IllegalArgumentException("Root directory already exists");
-        }
+        path = pathService.normalizePath(path, ResourceType.DIRECTORY);
 
         UserEntity owner = requireUser(username);
         String parentPath = pathService.extractParentPath(path);
@@ -388,6 +443,9 @@ public class ResourceService {
 
     private ResourceEntity buildEntity(UserEntity owner, String fullPath,
                                        ResourceType type, Long size) {
+        fullPath = type == ResourceType.DIRECTORY
+                ? pathService.normalizePath(fullPath, ResourceType.DIRECTORY)
+                : pathService.normalizePath(fullPath, ResourceType.FILE);
         ResourceEntity e = new ResourceEntity();
         e.setOwner(owner);
         e.setFullPath(fullPath);
@@ -396,6 +454,18 @@ public class ResourceService {
         e.setType(type);
         e.setSize(size);
         return e;
+    }
+
+    private String normalizeLookupPath(String path) {
+        if (path == null) {
+            throw new IllegalArgumentException("Path must not be null");
+        }
+        if (path.isEmpty()) {
+            return "";
+        }
+        return path.endsWith("/")
+                ? pathService.normalizePath(path, ResourceType.DIRECTORY)
+                : pathService.normalizePath(path, ResourceType.FILE);
     }
 
 }
