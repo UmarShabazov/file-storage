@@ -60,6 +60,10 @@ public class TestStorageConfig {
 
         @Override
         public void deleteBatch(Collection<String> objectKeys) {
+            if (objectKeys == null || objectKeys.isEmpty()) {
+                return;
+            }
+
             for (String key : objectKeys) {
                 store.remove(key);
             }

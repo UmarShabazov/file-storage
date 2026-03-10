@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.List;
 
 @Repository
 public class MinioStorageRepository implements StorageRepository {
@@ -40,9 +41,12 @@ public class MinioStorageRepository implements StorageRepository {
         if (fullPaths == null || fullPaths.isEmpty()) {
             return;
         }
-        for (String path : fullPaths) {
-            deleteFile(ownerId, path);
-        }
+
+        List<String> objectKeys = fullPaths.stream()
+                .map(path -> keyBuilder.createKey(ownerId, path))
+                .toList();
+
+        storage.deleteBatch(objectKeys);
     }
 
     @Override

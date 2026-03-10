@@ -4,6 +4,8 @@ import com.example.file_storage.entity.ResourceType;
 import com.example.file_storage.exception.StorageException;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
+import io.minio.messages.DeleteError;
+import io.minio.messages.DeleteObject;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -153,7 +156,29 @@ public class MinioStorageSDK implements ObjectStorageAdapter {
 
     @Override
     public void deleteBatch(Collection<String> objectKeys) {
+        if (objectKeys == null || objectKeys.isEmpty()) {
+            return;
+        }
 
+        List<DeleteObject> objects = objectKeys.stream()
+                .map(DeleteObject::new)
+                .toList();
+
+        Iterable<Result<DeleteError>> results = minioClient.removeObjects(
+                RemoveObjectsArgs.builder()
+                        .bucket(bucket)
+                        .objects(objects)
+                        .build()
+        );
+
+        for (Result<DeleteError> result : results) {
+            try {
+                DeleteError error = result.get();
+                throw new StorageException("Failed to delete object: " + error.objectName());
+            } catch (Exception e) {
+                throw new StorageException("Failed to delete objects: " + e.getMessage());
+            }
+        }
     }
 
 }
